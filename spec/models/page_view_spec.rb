@@ -85,9 +85,8 @@ describe PageView do
           @user2 = User.create! { |u| u.id = @user.local_id }
           account = Account.create!
           course_model(:account => account)
-          pv = page_view_model
-          pv.user = @pv_user
-          pv.context = @course
+          pv = PageView.new(user: @pv_user, context: @course)
+          pv.request_id = UUIDSingleton.instance.generate
           pv.store
 
           PageView.process_cache_queue
@@ -341,7 +340,7 @@ describe PageView do
   describe '.generate' do
     let(:params) { {'action' => 'path', 'controller' => 'some'} }
     let(:session) { {:id => '42'} }
-    let(:request) { stub(:url => (@url || 'host.com/some/path'), :path_parameters => params, :user_agent => 'Mozilla', :session_options => session, :method => :get) }
+    let(:request) { stub(:url => (@url || 'host.com/some/path'), :path_parameters => params, :user_agent => 'Mozilla', :session_options => session, :method => :get, :remote_ip => '0.0.0.0') }
     let(:user) { User.new }
     let(:attributes) { {:real_user => user, :user => user } }
 
@@ -361,6 +360,7 @@ describe PageView do
     its(:created_at) { should_not be_nil }
     its(:updated_at) { should_not be_nil }
     its(:http_method) { should == 'get' }
+    its(:remote_ip) { should == '0.0.0.0' }
 
     it "should filter sensitive url params" do
       @url = 'http://canvas.example.com/api/v1/courses/1?access_token=SUPERSECRET'

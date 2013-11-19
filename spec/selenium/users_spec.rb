@@ -164,28 +164,28 @@ describe "users" do
 
     it "should show an error if the user id entered is the current users" do
       get "/users/#{@student_1.id}/admin_merge"
-      assert_flash_error_message /\A\z/
+      flash_message_present?(:error).should be_false
       f('#manual_user_id').send_keys(@student_1.id)
       expect_new_page_load { f('button[type="submit"]').click }
       wait_for_ajaximations
-      assert_flash_error_message /You can't merge an account with itself./
+      flash_message_present?(:error, /You can't merge an account with itself./).should be_true
     end
 
     it "should show an error if invalid text is entered in the id box" do
       get "/users/#{@student_1.id}/admin_merge"
-      assert_flash_error_message /\A\z/
+      flash_message_present?(:error).should be_false
       f('#manual_user_id').send_keys("azxcvbytre34567uijmm23456yhj")
       expect_new_page_load { f('button[type="submit"]').click }
       wait_for_ajaximations
-      assert_flash_error_message /No active user with that ID was found./
+      flash_message_present?(:error, /No active user with that ID was found./).should be_true
     end
 
     it "should show an error if the user id doesnt exist" do
       get "/users/#{@student_1.id}/admin_merge"
-      assert_flash_error_message /\A\z/
+      flash_message_present?(:error).should be_false
       f('#manual_user_id').send_keys(1234567809)
       expect_new_page_load { f('button[type="submit"]').click }
-      assert_flash_error_message /No active user with that ID was found./
+      flash_message_present?(:error, /No active user with that ID was found./).should be_true
     end
   end
 
@@ -242,7 +242,7 @@ describe "users" do
       expect_new_page_load { form.submit }
       # confirm the user is authenticated into the dashboard
       f('#identity .logout').should be_present
-      User.last.initial_enrollment_type.should eql 'student'
+      User.last.initial_enrollment_type.should == 'student'
     end
 
     it "should register a teacher" do
@@ -257,7 +257,7 @@ describe "users" do
       expect_new_page_load { form.submit }
       # confirm the user is authenticated into the dashboard
       f('#identity .logout').should be_present
-      User.last.initial_enrollment_type.should eql 'teacher'
+      User.last.initial_enrollment_type.should == 'teacher'
     end
 
     it "should register an observer" do
@@ -276,7 +276,7 @@ describe "users" do
       expect_new_page_load { form.submit }
       # confirm the user is authenticated into the dashboard
       f('#identity .logout').should be_present
-      User.last.initial_enrollment_type.should eql 'observer'
+      User.last.initial_enrollment_type.should == 'observer'
     end
   end
 

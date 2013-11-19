@@ -16,7 +16,7 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
-require File.expand_path(File.dirname(__FILE__) + '/../spec_helper.rb')
+require File.expand_path(File.dirname(__FILE__) + '/../sharding_spec_helper.rb')
 
 describe Wiki do
   before :each do
@@ -34,18 +34,17 @@ describe Wiki do
     it "should unset front page" do
       @wiki.unset_front_page!
 
-      @wiki.front_page_url.should == nil
-      @wiki.front_page.should == nil
       @wiki.has_front_page?.should == false
+      @wiki.front_page_url.should == nil
     end
   end
 
   context "set_front_page_url!" do
     it "should set front_page_url" do
       @wiki.unset_front_page!
-
       new_url = "ponies4ever"
       @wiki.set_front_page_url!(new_url).should == true
+
       @wiki.has_front_page?.should == true
       @wiki.front_page_url.should == new_url
     end
@@ -133,6 +132,16 @@ describe Wiki do
 
       it 'should give update_page_content rights to students' do
         @course.wiki.grants_right?(@user, :update_page_content).should be_true
+      end
+    end
+  end
+
+  context "sharding" do
+    specs_require_sharding
+
+    it "should find the wiki's context from another shard" do
+      @shard1.activate do
+        @wiki.context.should == @course
       end
     end
   end

@@ -249,30 +249,7 @@ describe UsersController do
         p.user.communication_channels.first.path.should == 'jacob@instructure.com'
 
         post 'create', :pseudonym => { :unique_id => 'jacob@instructure.com' }, :user => { :name => 'Jacob Fugal', :terms_of_use => '1' }
-        response.should be_success
-
-        Pseudonym.find_all_by_unique_id('jacob@instructure.com').should == [p]
-        p.reload
-        p.should be_active
-        p.user.should be_pre_registered
-        p.user.name.should == 'Jacob Fugal'
-        p.user.communication_channels.length.should == 1
-        p.user.communication_channels.first.should be_unconfirmed
-        p.user.communication_channels.first.path.should == 'jacob@instructure.com'
-
-        # case sensitive?
-        post 'create', :pseudonym => { :unique_id => 'JACOB@instructure.com' }, :user => { :name => 'Jacob Fugal', :terms_of_use => '1' }
-        response.should be_success
-
-        Pseudonym.by_unique_id('jacob@instructure.com').all.should == [p]
-        Pseudonym.by_unique_id('JACOB@instructure.com').all.should == [p]
-        p.reload
-        p.should be_active
-        p.user.should be_pre_registered
-        p.user.name.should == 'Jacob Fugal'
-        p.user.communication_channels.length.should == 1
-        p.user.communication_channels.first.should be_unconfirmed
-        p.user.communication_channels.first.path.should == 'jacob@instructure.com'
+        response.should_not be_success
       end
 
       it "should validate acceptance of the terms" do
@@ -514,7 +491,6 @@ describe UsersController do
       @assignment.grade_student(@s1, :grade => 3)
       @assignment.grade_student(@s2, :grade => 4)
       @assignment.grade_student(@test_student, :grade => 5)
-      run_transaction_commit_callbacks
 
       get 'grades'
       assigns[:presenter].course_grade_summaries[@course.id].should == { :score => 70, :students => 2 }

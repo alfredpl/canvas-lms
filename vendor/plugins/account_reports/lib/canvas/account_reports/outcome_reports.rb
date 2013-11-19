@@ -93,18 +93,20 @@ module Canvas::AccountReports
                                        AND a.context_type = 'Course')
           INNER JOIN content_tags ct ON (ct.content_id = a.id
                                          AND ct.content_type = 'Assignment')
-          INNER JOIN learning_outcomes lo ON (
-            lo.id = ct.learning_outcome_id
-            AND lo.context_type = 'Account'
-            AND lo.context_id = :account_id
-          )
+          INNER JOIN learning_outcomes lo ON lo.id = ct.learning_outcome_id
+          INNER JOIN content_tags lol ON lol.content_id = lo.id
+            AND lol.context_id = :account_id
+            AND lol.context_type = 'Account'
+            AND lol.tag_type = 'learning_outcome_association'
+            AND lol.workflow_state != 'deleted'
           LEFT JOIN learning_outcome_results r ON (r.user_id=pseudonyms.user_id
                                                    AND r.content_tag_id = ct.id)
           LEFT JOIN submissions sub ON sub.assignment_id = a.id
             AND sub.user_id = pseudonyms.user_id", parameters])).
         where("
           ct.tag_type = 'learning_outcome'
-          AND ct.workflow_state <> 'deleted'"
+          AND ct.workflow_state <> 'deleted'
+          AND (r.id IS NULL OR (r.artifact_type IS NOT NULL AND r.artifact_type <> 'Submission'))"
       )
 
       unless @include_deleted
@@ -171,7 +173,7 @@ module Canvas::AccountReports
     end
 
     def outcome_results
-      students = account.learning_outcomes.
+      students = account.learning_outcome_links.active.
         select(%{u.sortable_name                             AS "student name",
                  p.user_id                                   AS "student id",
                  p.sis_user_id                               AS "student sis id",
@@ -191,7 +193,9 @@ module Canvas::AccountReports
             CASE WHEN r.association_type = 'Quiz' THEN 'quiz'
                  WHEN ct.content_type = 'Assignment' THEN 'assignment'
                  END                                         AS "assessment type"}).
-        joins("INNER JOIN learning_outcome_results r ON r.learning_outcome_id = learning_outcomes.id
+        joins("INNER JOIN learning_outcomes ON content_tags.content_id = learning_outcomes.id
+                 AND content_tags.content_type = 'LearningOutcome'
+               INNER JOIN learning_outcome_results r ON r.learning_outcome_id = learning_outcomes.id
                INNER JOIN content_tags ct ON r.content_tag_id = ct.id
                INNER JOIN users u ON u.id = r.user_id
                INNER JOIN pseudonyms p on p.user_id = r.user_id
@@ -205,7 +209,8 @@ module Canvas::AccountReports
                  AND r.artifact_type = 'QuizSubmission'
                LEFT OUTER JOIN assessment_questions aq ON aq.id = r.associated_asset_id
                  AND r.associated_asset_type = 'AssessmentQuestion'").
-        where("ct.workflow_state <> 'deleted'")
+        where("ct.workflow_state <> 'deleted'
+               AND (r.id IS NULL OR (r.artifact_type IS NOT NULL AND r.artifact_type <> 'Submission'))")
 
       unless @include_deleted
         students = students.where("p.workflow_state<>'deleted' AND c.workflow_state='available'")

@@ -30,15 +30,17 @@ class Wiki < ActiveRecord::Base
   attr_accessible :title
 
   has_many :wiki_pages, :dependent => :destroy
-  before_create :default_front_page
+  before_save :set_has_no_front_page_default
   after_save :update_contexts
 
   DEFAULT_FRONT_PAGE_URL = 'front-page'
 
-  def default_front_page
-    has_no_front_page = front_page_url.nil? if has_no_front_page.nil?
+  def set_has_no_front_page_default
+    if self.has_no_front_page.nil? && self.id && context
+      self.has_no_front_page = true if context.draft_state_enabled?
+    end
   end
-  private :default_front_page
+  private :set_has_no_front_page_default
 
   def update_contexts
     self.context.try(:touch)
@@ -66,16 +68,29 @@ class Wiki < ActiveRecord::Base
 
   def check_has_front_page
     return unless self.has_no_front_page.nil?
-    self.has_no_front_page = !self.wiki_pages.where(:url => self.front_page_url || DEFAULT_FRONT_PAGE_URL).exists?
+
+    url = DEFAULT_FRONT_PAGE_URL
+    self.has_no_front_page = !self.wiki_pages.not_deleted.where(:url => url).exists?
+    self.front_page_url = url unless self.has_no_front_page
     self.save
   end
   
   def front_page
-    return nil unless has_front_page?
+    url = self.get_front_page_url
+    return nil if url.nil?
+
     # TODO i18n
     t :front_page_name, "Front Page"
-    url = self.get_front_page_url
-    self.wiki_pages.find_by_url(url) || self.wiki_pages.build(:title => "Front Page", :url => url)
+    # attempt to find the page and store it's url (if it is found)
+    page = self.wiki_pages.not_deleted.find_by_url(url)
+    self.set_front_page_url!(url) if self.has_no_front_page && page
+
+    # return an implicitly created page if a page could not be found
+    unless page
+      page = self.wiki_pages.new(:title => url.titleize, :url => url)
+      page.wiki = self
+    end
+    page
   end
 
   def has_front_page?
@@ -83,7 +98,7 @@ class Wiki < ActiveRecord::Base
   end
 
   def get_front_page_url
-    return nil unless self.has_front_page?
+    return nil unless self.has_front_page? || !context.draft_state_enabled?
     self.front_page_url || DEFAULT_FRONT_PAGE_URL
   end
 
@@ -108,7 +123,9 @@ class Wiki < ActiveRecord::Base
   end
 
   def context
-    @context ||= Course.find_by_wiki_id(self.id) || Group.find_by_wiki_id(self.id)
+    shard.activate do
+      @context ||= Course.find_by_wiki_id(self.id) || Group.find_by_wiki_id(self.id)
+    end
   end
 
   def context_type
@@ -151,5 +168,17 @@ class Wiki < ActiveRecord::Base
       context.save!
       wiki
     end
+  end
+
+  def build_wiki_page(user, opts={})
+    if (opts.include?(:url) || opts.include?(:title)) && (!opts.include?(:url) || !opts.include?(:title))
+      opts[:title] = opts[:url].to_s.titleize if opts.include?(:url)
+      opts[:url] = opts[:title].to_s.to_url if opts.include?(:title)
+    end
+
+    page = WikiPage.new(opts)
+    page.wiki = self
+    page.initialize_wiki_page(user)
+    page
   end
 end
